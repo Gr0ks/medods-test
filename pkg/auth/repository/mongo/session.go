@@ -37,15 +37,11 @@ func (r *SessionRepository) InsertOrUpdate(session *models.Session) error {
 
 func (r *SessionRepository) Get(userId string) (*models.Session, error) {
 	session := new(models.Session)
-
 	if err := r.db.FindOne(ctx, bson.M{"userId": userId}).Decode(session); err != nil {
-		log.Errorf("error occured while getting user from db: %s", err.Error())
 		if err == mongo.ErrNoDocuments {
 			return nil, errors.New("user does not exist")
 		}
-
 		return nil, err
 	}
-
 	return session, nil
 }
