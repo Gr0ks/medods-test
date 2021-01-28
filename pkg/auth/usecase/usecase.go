@@ -1,13 +1,13 @@
 package usecase
 
 import (
-	"crypto/sha1"
 	"fmt"
 	jwt "github.com/dgrijalva/jwt-go"
 	"medods-test/pkg/models"
 	"medods-test/pkg/auth"
 	"time"
 	"errors"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type AccessPairCreator struct {
@@ -31,18 +31,16 @@ func (a *AccessPairCreator) GetNewPair(session *models.Session) (*models.AccessP
 	startedAt := time.Now()
 	session.StartedAt = startedAt.String()
 	
-	refreshKey := sha1.New()
-	refreshKey.Write([]byte(session.UserId))
-	refreshKey.Write([]byte(session.UserIP))
-	refreshKey.Write([]byte(session.StartedAt))
+	dataForRefreshKey := session.UserId + session.UserIP +session.StartedAt
+	refreshKey :=sha1.New()
+	refreshKey.Write([]byte(dataForRefreshKey))
 	refreshKey.Write([]byte(a.hashSalt))
 	refreshToken := fmt.Sprintf("%x", refreshKey.Sum(nil))
-
-	savedRefreshToken := sha1.New()
-	savedRefreshToken.Write([]byte(refreshToken))
-	savedRefreshToken.Write([]byte(a.hashSalt))
-
-	session.RefreshToken = fmt.Sprintf("%x", savedRefreshToken.Sum(nil))
+	refreshTokenHash, err := bcrypt.GenerateFromPassword([]byte(refreshToken), bcrypt.MinCost)
+	if err != nil {
+		return &models.AccessPair{}, err
+	}
+	session.RefreshToken = string(refreshKeyHash)
 
 	err := a.repo.Insert(session)
 	if err != nil {
@@ -68,7 +66,7 @@ func (a *AccessPairCreator) GetNewPair(session *models.Session) (*models.AccessP
 
 	return &models.AccessPair{
 		AccessKey: accessKey,
-		RefreshKey: session.RefreshToken,
+		RefreshKey: refreshToken,
 	}, nil
 }
 	
@@ -88,18 +86,15 @@ func (a *AccessPairCreator) RefreshPair(accessPair *models.AccessPair, newSessio
 			return &models.AccessPair{}, err
 		}
 
+		dataForRefreshKey := claims.UserId + claims.UserIP +claims.StartedAt
 		refreshKey :=sha1.New()
-		refreshKey.Write([]byte(claims.UserId))
-		refreshKey.Write([]byte(claims.UserIP))
-		refreshKey.Write([]byte(claims.StartedAt))
+		refreshKey.Write([]byte(dataForRefreshKey))
 		refreshKey.Write([]byte(a.hashSalt))
 		refreshToken := fmt.Sprintf("%x", refreshKey.Sum(nil))
-
-		refreshTokenKey := sha1.New()
-		refreshTokenKey.Write([]byte(accessPair.RefreshKey))
-		refreshTokenKey.Write([]byte(a.hashSalt))
-
-		refreshTokenHash := fmt.Sprintf("%x", refreshTokenKey.Sum(nil))
+		err := bcrypt.CompareHashAndPassword([]byte(session.RefreshToken), refreshToken)
+		if err != nil {
+			return &models.AccessPair{}, err
+		}
 
 		if refreshToken == accessPair.RefreshKey && refreshTokenHash == session.RefreshToken {
 			return a.GetNewPair(newSession)
