@@ -5,6 +5,6 @@ import (
 )
 
 type Repository interface {
-	Insert(session *models.Session) error
+	InsertOrUpdate(session *models.Session) error
 	Get(userId string) (*models.Session, error)
 }
