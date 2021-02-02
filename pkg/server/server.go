@@ -43,7 +43,7 @@ func (a *App) Run(port string) error {
 	r := mux.NewRouter()
 	delivery.RegisterHTTPEndpoints(r, a.useCase)
 	go func() {
-		log.Fatal(http.ListenAndServe(":8090", r))
+		log.Fatal(http.ListenAndServe(":" + port, r))
 	}()
 
 	quit := make(chan os.Signal, 1)
@@ -61,7 +61,7 @@ func initDB() *mongo.Database {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017/")
+	clientOptions := options.Client().ApplyURI("mongodb://auth-mongo:27017/")
     client, err := mongo.Connect(ctx, clientOptions)
     if err != nil {
         log.Fatal(err)
