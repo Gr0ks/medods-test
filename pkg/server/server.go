@@ -13,6 +13,8 @@ import (
 	"context"
 	"time"
 	"github.com/gorilla/mux"
+	"os"
+	"os/signal"
 )
 
 type App struct {
@@ -37,28 +39,34 @@ func NewApp() *App {
 	}
 }
 
-func (a *App) Run(port string) {
+func (a *App) Run(port string) error {
 	r := mux.NewRouter()
 	delivery.RegisterHTTPEndpoints(r, a.useCase)
 	go func() {
-		log.Fatal(http.ListenAndServe(":" + port, r))
+		log.Fatal(http.ListenAndServe(":8090", r))
 	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, os.Interrupt)
+
+	<-quit
+
+	ctx, shutdown := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdown()
+
+	return a.httpServer.Shutdown(ctx)
 }
 
 func initDB() *mongo.Database {
-	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb://auth-mongo:27017"))
-	if err != nil {
-		log.Fatalf("Error occured while establishing connection to mongoDB")
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	err = client.Connect(ctx)
-	if err != nil {
-		log.Fatal(err)
-	}
-
+	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017/")
+    client, err := mongo.Connect(ctx, clientOptions)
+    if err != nil {
+        log.Fatal(err)
+    }
+	
 	err = client.Ping(context.Background(), nil)
 	if err != nil {
 		log.Fatal(err)

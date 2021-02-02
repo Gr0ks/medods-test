@@ -8,6 +8,6 @@ import (
 func RegisterHTTPEndpoints(router *mux.Router, useCase auth.UseCase) {
 	h := newHandler(useCase)
 
-	router.HandleFunc("api/auth", h.getNewPair).Methods("POST")
-	router.HandleFunc("api/auth/refreshToken", h.refreshPair).Methods("POST")
+	router.HandleFunc("/api/auth", h.getNewPair)
+	router.HandleFunc("/api/auth/refreshToken", h.refreshPair)
 }
