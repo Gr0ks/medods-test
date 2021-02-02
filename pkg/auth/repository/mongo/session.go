@@ -3,7 +3,6 @@ package mongo
 import (
 	"context"
 	"medods-test/pkg/models"
-	"medods-test/pkg/auth"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -20,7 +19,7 @@ func NewSessionRepository(db *mongo.Database, collection string) *SessionReposit
 	}
 }
 
-func (r *SessionRepository) InsertOrUpdate(session *models.Session) error {
+func (r *SessionRepository) InsertOrUpdate(ctx context.Context, session *models.Session) error {
 	opts := options.FindOneAndUpdate().SetUpsert(true)
 	filter := bson.D{{"userId", session.UserId}}
 	update := bson.D{{"$set", bson.D{
@@ -28,14 +27,11 @@ func (r *SessionRepository) InsertOrUpdate(session *models.Session) error {
 		{"startedAt", session.StartedAt},
 		{"refreshToken", session.RefreshToken},
 	}}}
-	err := r.db.FindOneAndUpdate(filter, update, opts)
-	if err != nil {
-		return err
-	}
+	r.db.FindOneAndUpdate(ctx, filter, update, opts)
 	return nil
 }
 
-func (r *SessionRepository) Get(userId string) (*models.Session, error) {
+func (r *SessionRepository) Get(ctx context.Context, userId string) (*models.Session, error) {
 	session := new(models.Session)
 	if err := r.db.FindOne(ctx, bson.M{"userId": userId}).Decode(session); err != nil {
 		if err == mongo.ErrNoDocuments {

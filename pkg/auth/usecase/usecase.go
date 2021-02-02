@@ -8,6 +8,8 @@ import (
 	"time"
 	"errors"
 	"golang.org/x/crypto/bcrypt"
+	"crypto/sha1"
+	"context"
 )
 
 type AccessPairCreator struct {
@@ -27,7 +29,7 @@ func NewAccessPairCreator(repo auth.Repository, hashSalt string, signingKey []by
 	}
 }
 
-func (a *AccessPairCreator) GetNewPair(session *models.Session) (*models.AccessPair, error) {
+func (a *AccessPairCreator) GetNewPair(ctx context.Context, session *models.Session) (*models.AccessPair, error) {
 	startedAt := time.Now()
 	session.StartedAt = startedAt.String()
 	
@@ -40,9 +42,9 @@ func (a *AccessPairCreator) GetNewPair(session *models.Session) (*models.AccessP
 	if err != nil {
 		return &models.AccessPair{}, err
 	}
-	session.RefreshToken = string(refreshKeyHash)
+	session.RefreshToken = string(refreshTokenHash)
 
-	err := a.repo.Insert(session)
+	err = a.repo.InsertOrUpdate(ctx, session)
 	if err != nil {
 		return &models.AccessPair{}, err
 	}
@@ -70,7 +72,7 @@ func (a *AccessPairCreator) GetNewPair(session *models.Session) (*models.AccessP
 	}, nil
 }
 	
-func (a *AccessPairCreator) RefreshPair(accessPair *models.AccessPair, newSession *models.Session) (*models.AccessPair, error) {
+func (a *AccessPairCreator) RefreshPair(ctx context.Context, accessPair *models.AccessPair, newSession *models.Session) (*models.AccessPair, error) {
 	token, err := jwt.ParseWithClaims(accessPair.AccessKey, &auth.Claims{}, func(token *jwt.Token) (interface{}, error) {
 		return a.signingKey, nil
 	})
@@ -81,7 +83,7 @@ func (a *AccessPairCreator) RefreshPair(accessPair *models.AccessPair, newSessio
 
 	claims, ok := token.Claims.(*auth.Claims)
 	if ok && token.Valid {
-		session, err := a.repo.Get(claims.UserId)
+		session, err := a.repo.Get(ctx, claims.UserId)
 		if err != nil {
 			return &models.AccessPair{}, err
 		}
@@ -91,13 +93,13 @@ func (a *AccessPairCreator) RefreshPair(accessPair *models.AccessPair, newSessio
 		refreshKey.Write([]byte(dataForRefreshKey))
 		refreshKey.Write([]byte(a.hashSalt))
 		refreshToken := fmt.Sprintf("%x", refreshKey.Sum(nil))
-		err := bcrypt.CompareHashAndPassword([]byte(session.RefreshToken), refreshToken)
+		err = bcrypt.CompareHashAndPassword([]byte(session.RefreshToken), []byte(refreshToken))
 		if err != nil {
 			return &models.AccessPair{}, err
 		}
 
-		if refreshToken == accessPair.RefreshKey && refreshTokenHash == session.RefreshToken {
-			return a.GetNewPair(newSession)
+		if refreshToken == accessPair.RefreshKey {
+			return a.GetNewPair(ctx, newSession)
 		}
 		
 		return &models.AccessPair{}, errors.New("invalid access token")

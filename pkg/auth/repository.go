@@ -2,9 +2,10 @@ package auth
 
 import (
 	"medods-test/pkg/models"
+	"context"
 )
 
 type Repository interface {
-	InsertOrUpdate(session *models.Session) error
-	Get(userId string) (*models.Session, error)
+	InsertOrUpdate(ctx context.Context, session *models.Session) error
+	Get(ctx context.Context, userId string) (*models.Session, error)
 }
